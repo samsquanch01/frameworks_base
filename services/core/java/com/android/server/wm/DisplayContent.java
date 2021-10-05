@@ -637,6 +637,13 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
      * {@link #ensureActivitiesVisible(ActivityRecord, int, boolean, boolean)}
      */
     private boolean mInEnsureActivitiesVisible = false;
+    
+    /**
+     * Used to do legacy refresh rate switch
+     */
+    int mSystemDisplayModeId = 0;
+    float mBaseRefreshRate = 0.0f;
+    float mInitialRefreshRate = 0.0f;
 
     private final Consumer<WindowState> mUpdateWindowsForAnimator = w -> {
         WindowStateAnimator winAnimator = w.mWinAnimator;
@@ -2454,6 +2461,13 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
         mInitialDisplayHeight = mDisplayInfo.logicalHeight;
         mInitialDisplayDensity = mDisplayInfo.logicalDensityDpi;
         mInitialDisplayCutout = mDisplayInfo.displayCutout;
+        mBaseRefreshRate = this.mDisplayInfo.getMode().getRefreshRate();
+        mInitialRefreshRate = (float) (mWmService.mContext.getResources().getInteger(
+                com.android.internal.R.integer.config_defaultPeakRefreshRate) == 0 ?
+                mWmService.mContext.getResources().getInteger(
+                com.android.internal.R.integer.config_defaultRefreshRate) :
+                mWmService.mContext.getResources().getInteger(
+                com.android.internal.R.integer.config_defaultPeakRefreshRate));
     }
 
     /**
@@ -4007,6 +4021,23 @@ class DisplayContent extends WindowContainer<DisplayContent.DisplayChildWindowCo
         mInsetsStateController.getImeSourceProvider().checkShowImePostLayout();
 
         mLastHasContent = mTmpApplySurfaceChangesTransactionState.displayHasContent;
+        
+        // Legacy refresh rate control support see framework/base/core/java/android/view/IWIndowManager.aidl for more information
+        boolean useLegacyRefreshRateControl = mWmService.mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_useLegacyRefreshRateControl);
+        if(useLegacyRefreshRateControl) {
+            if (this.mTmpApplySurfaceChangesTransactionState.preferredRefreshRate == 0.0f) {
+                if (this.mBaseRefreshRate != 0.0f) {
+                    this.mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = this.mBaseRefreshRate;
+                } else {
+                    this.mTmpApplySurfaceChangesTransactionState.preferredRefreshRate = this.mInitialRefreshRate;
+                }
+            }
+            if (this.mTmpApplySurfaceChangesTransactionState.preferredModeId == 0 && this.mSystemDisplayModeId != 0) {
+                this.mTmpApplySurfaceChangesTransactionState.preferredModeId = this.mSystemDisplayModeId;
+            }
+        }
+        
         mWmService.mDisplayManagerInternal.setDisplayProperties(mDisplayId,
                 mLastHasContent,
                 mTmpApplySurfaceChangesTransactionState.preferredRefreshRate,

@@ -8295,4 +8295,39 @@ public class WindowManagerService extends IWindowManager.Stub
             Binder.restoreCallingIdentity(origId);
         }
     }
+
+    @Override
+    public void setDisplayRefreshRate(int displayId, int refreshRate) {
+        boolean useLegacyRefreshRateControl = context.getResources().getBoolean(
+                com.android.internal.R.bool.config_useLegacyRefreshRateControl);
+        if(!useLegacyRefreshRateControl)
+            return;
+            
+        if (this.mContext.checkCallingOrSelfPermission("android.permission.WRITE_SETTINGS") != 0) {
+            throw new SecurityException("Must hold permission android.permission.WRITE_SETTINGS");
+        } else {
+            long clearCallingIdentity = Binder.clearCallingIdentity();
+            synchronized (this.mWindowMap) {
+                try {
+                    boostPriorityForLockedSection();
+                    DisplayContent displayContent = this.mRoot.getDisplayContent(displayId);
+                    if (displayContent != null) {
+                        float refreshRateF = (float) refreshRate;
+                        if (!(displayContent.mBaseRefreshRate == refreshRateF && displayContent.mSystemDisplayModeId == 0)) {
+                            displayContent.mBaseRefreshRate = refreshRateF;
+                            displayContent.mSystemDisplayModeId = 0;
+                            this.mWindowPlacerLocked.performSurfacePlacement();
+                        }
+                    }
+                } catch (Throwable th) {
+                    while (true) {
+                        resetPriorityAfterLockedSection();
+                        throw th;
+                    }
+                }
+            }
+            resetPriorityAfterLockedSection();
+            Binder.restoreCallingIdentity(clearCallingIdentity);
+        }
+    }
 }

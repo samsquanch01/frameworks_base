@@ -773,4 +773,14 @@ interface IWindowManager
      * Notifies DisplayPolicy that overlays changed.
      */
     void onOverlayChanged();
+    
+    /**
+     * Legacy refresh rate change interface for kernel high refresh rate only screen. Such as Razer Phone(2)'s Sharp 120hz only lcd
+     *
+     * You need to overlay framework/base/core/res/res/config.xml - config_useLegacyRefreshRateControl to true to tae effect
+     *
+     * @param displayId the id of the display to target
+     * @param refreshRate the refersh rate you want to set
+     */
+    void setDisplayRefreshRate(int displayId, int refreshRate);
 }

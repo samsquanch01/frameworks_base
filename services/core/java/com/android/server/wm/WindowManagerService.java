@@ -166,6 +166,7 @@ import android.hardware.display.DisplayManagerInternal;
 import android.hardware.input.InputManager;
 import android.hardware.input.InputManagerInternal;
 import android.net.Uri;
+import android.util.Log;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
@@ -1030,6 +1031,8 @@ public class WindowManagerService extends IWindowManager.Stub
 
     private final SurfaceControl.Transaction mTransaction;
 
+    boolean mUseLegacyRefreshRateControl;
+
     static void boostPriorityForLockedSection() {
         sThreadPriorityBooster.boost();
     }
@@ -1183,6 +1186,7 @@ public class WindowManagerService extends IWindowManager.Stub
                 com.android.internal.R.bool.config_perDisplayFocusEnabled);
         mAssistantOnTopOfDream = context.getResources().getBoolean(
                 com.android.internal.R.bool.config_assistantOnTopOfDream);
+        mUseLegacyRefreshRateControl = true;
         mInputManager = inputManager; // Must be before createDisplayContentLocked.
         mDisplayManagerInternal = LocalServices.getService(DisplayManagerInternal.class);
 
@@ -8293,6 +8297,45 @@ public class WindowManagerService extends IWindowManager.Stub
             }
         } finally {
             Binder.restoreCallingIdentity(origId);
+        }
+    }
+
+    @Override
+    public void setDisplayRefreshRate(int displayId, int refreshRate) {
+    	Log.e("WM_Razer","Server Side : rate = " + refreshRate + "id= " + displayId);
+        if(!mUseLegacyRefreshRateControl)
+            return;
+            
+        if (this.mContext.checkCallingOrSelfPermission("android.permission.WRITE_SETTINGS") != 0) {
+            Log.e("WM_Razer","Permission denied");
+            throw new SecurityException("Must hold permission android.permission.WRITE_SETTINGS");
+        } else {
+            long clearCallingIdentity = Binder.clearCallingIdentity();
+            synchronized (this.mWindowMap) {
+                try {
+                    boostPriorityForLockedSection();
+                    DisplayContent displayContent = this.mRoot.getDisplayContent(displayId);
+                    Log.e("WM_Razer","displayContent");
+                    if (displayContent != null) {
+                        Log.e("WM_Razer","Will Call");
+                        float refreshRateF = (float) refreshRate;
+                        if (displayContent.mBaseRefreshRate != refreshRateF) {
+                            displayContent.mBaseRefreshRate = refreshRateF;
+                            displayContent.mSystemDisplayModeId = 0;
+                            this.mWindowPlacerLocked.performSurfacePlacement();
+                            Log.e("WM_Razer","Done");
+                        }
+                    }
+                } catch (Throwable th) {
+                    Log.e("WM_Razer","err");
+                    while (true) {
+                        resetPriorityAfterLockedSection();
+                        throw th;
+                    }
+                }
+            }
+            resetPriorityAfterLockedSection();
+            Binder.restoreCallingIdentity(clearCallingIdentity);
         }
     }
 }

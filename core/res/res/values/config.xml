@@ -4399,4 +4399,7 @@
 
     <!-- Component names of the services which will keep critical code path warm -->
     <string-array name="config_keep_warming_services" translatable="false" />
+    
+    <!-- True if the device has a kernel high refresh rate only screen, then use Api in IWindowManager -->
+    <bool name="config_useLegacyRefreshRateControl">false</bool>
 </resources>
